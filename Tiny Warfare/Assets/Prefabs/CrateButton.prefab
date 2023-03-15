@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 771925764256018060}
   - component: {fileID: 2740916774983191146}
   m_Layer: 5
-  m_Name: Button (Legacy)
+  m_Name: Button
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -218,7 +218,7 @@ GameObject:
   - component: {fileID: 3965021555628798013}
   - component: {fileID: 802242095992794823}
   m_Layer: 5
-  m_Name: Canvas (1)
+  m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -319,7 +319,7 @@ GameObject:
   - component: {fileID: 6507585266096916395}
   - component: {fileID: 2313572920807454444}
   m_Layer: 5
-  m_Name: Text (Legacy)
+  m_Name: ButtonText
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

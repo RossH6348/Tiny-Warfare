@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class TitleScreenScript : MonoBehaviour
 {
-
     [SerializeField] private Camera titleCamera;
 
     [SerializeField] private Transform cameraTarget;
