@@ -2701,7 +2701,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GlobalObjectIdHash: 3275614529
   AlwaysReplicateAsRoot: 0
-  DontDestroyWithOwner: 0
+  DontDestroyWithOwner: 1
   AutoObjectParentSync: 1
 --- !u!1 &963194225
 GameObject:
@@ -2754,7 +2754,7 @@ Camera:
     height: 1
   near clip plane: 0.1
   far clip plane: 1000
-  field of view: 70
+  field of view: 90
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -2779,8 +2779,8 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
-  m_LocalRotation: {x: -0.12958455, y: 0.6969387, z: -0.13028753, w: -0.6931879}
-  m_LocalPosition: {x: -0.7049999, y: 0.5999994, z: 0.009999998}
+  m_LocalRotation: {x: -0.0002554865, y: 0.99697834, z: 0.077611, w: 0.0032899794}
+  m_LocalPosition: {x: 0.111812755, y: 0.25614285, z: -0.46544838}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -12191,6 +12191,10 @@ PrefabInstance:
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
       objectReference: {fileID: 929533558}
+    - target: {fileID: 3932002057131787518, guid: 6c43f3f14bb8d944a9364d71a03787d6, type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
+      value: LeaveLobby
+      objectReference: {fileID: 0}
     - target: {fileID: 4401621778160646484, guid: 6c43f3f14bb8d944a9364d71a03787d6, type: 3}
       propertyPath: m_RootOrder
       value: 0
