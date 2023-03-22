@@ -4,11 +4,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using Unity.Netcode;
 
-public class TitleScreenScript : MonoBehaviour
+public class TitleScreenScript : NetworkBehaviour
 {
 
 
-    [SerializeField] private NetworkManager Multiplayer;
+    //[SerializeField] private NetworkManager Multiplayer;
+    [SerializeField] private OptionsScript options;
 
     [SerializeField] private Camera titleCamera;
 
@@ -22,6 +23,8 @@ public class TitleScreenScript : MonoBehaviour
     [SerializeField] private GameObject joinDialog;
     [SerializeField] private InputField joinInput;
 
+    [SerializeField] private List<GameObject> LobbySoldiers;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -29,6 +32,9 @@ public class TitleScreenScript : MonoBehaviour
         networkDialog.SetActive(false);
         joinDialog.SetActive(false);
         networkTopic.text = networkText.text = joinInput.text = "";
+
+        NetworkManager.OnClientConnectedCallback += onLobbyJoin;
+        NetworkManager.OnClientDisconnectCallback += onLobbyLeave;
 
     }
 
@@ -69,7 +75,7 @@ public class TitleScreenScript : MonoBehaviour
     public void HostLobby()
     {
 
-        Multiplayer.StartHost();
+        NetworkManager.StartHost();
 
         if (cameraTarget != cameraLocations[2])
             cameraTarget = cameraLocations[2];
@@ -87,12 +93,80 @@ public class TitleScreenScript : MonoBehaviour
     public void ConnectLobby()
     {
 
-        Multiplayer.StartClient();
+        NetworkManager.StartClient();
         joinDialog.SetActive(false);
 
         if (cameraTarget != cameraLocations[2])
             cameraTarget = cameraLocations[2];
 
+    }
+
+    private void onLobbyJoin(ulong clientId)
+    {
+
+        ClientRpcParams clientRpcParams = new ClientRpcParams
+        {
+            Send = new ClientRpcSendParams
+            {
+                TargetClientIds = new ulong[] { clientId }
+            }
+        };
+
+        LobbyHandshakeClientRpc(clientRpcParams);
+
+    }
+
+    private void onLobbyLeave(ulong clientId)
+    {
+
+        ClearLobbyClientRpc();
+        NetworkManager.Shutdown();
+
+    }
+
+    List<string> LobbyPlayers = new List<string>();
+
+    [ServerRpc(RequireOwnership = false)]
+    private void LobbyHandshakeServerRpc(string playerName)
+    {
+
+        //Okay we received this client's name, so let add it to the server list and rebroadcast the current lobby status.
+        LobbyPlayers.Add(playerName);
+        ClearLobbyClientRpc();
+        foreach (string name in LobbyPlayers)
+            AddLobbyPlayerClientRpc(name);
+
+    }
+
+    [ClientRpc]
+    private void LobbyHandshakeClientRpc(ClientRpcParams clientRpcParams = default)
+    {
+
+        LobbyHandshakeServerRpc(options.playerInputField.text);
+
+    }
+
+    [ClientRpc]
+    private void ClearLobbyClientRpc()
+    {
+        foreach (GameObject soldier in LobbySoldiers)
+            soldier.SetActive(false);
+    }
+
+    [ClientRpc]
+    private void AddLobbyPlayerClientRpc(string playerName)
+    {
+        foreach(GameObject soldier in LobbySoldiers)
+        {
+            if (!soldier.activeSelf)
+            {
+                soldier.SetActive(true);
+                LobbyPlayerScript lobbyPlayer = soldier.GetComponent<LobbyPlayerScript>();
+                if (lobbyPlayer != null)
+                    lobbyPlayer.initializePlayer(playerName, IsHost);
+                break;
+            }
+        }
     }
 
 }

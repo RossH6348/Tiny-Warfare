@@ -11,7 +11,7 @@ public class OptionsScript : MonoBehaviour
     [SerializeField] private Text sensitivityText;
 
     private string previousName = "";
-    [SerializeField] private InputField playerInputField;
+    [SerializeField] public InputField playerInputField;
 
     [SerializeField] private Slider volumeSlider;
     [SerializeField] private Slider sensitivitySlider;
