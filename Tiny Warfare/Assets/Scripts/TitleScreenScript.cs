@@ -101,6 +101,13 @@ public class TitleScreenScript : NetworkBehaviour
 
     }
 
+    public void LobbyKickPlayer(Text playerText)
+    {
+
+        LobbyKickPlayerServerRpc(playerText.text);
+
+    }
+
     private void onLobbyJoin(ulong clientId)
     {
 
@@ -119,6 +126,8 @@ public class TitleScreenScript : NetworkBehaviour
     private void onLobbyLeave(ulong clientId)
     {
         NetworkManager.Shutdown();
+        ClientToNameScript.clientToName.Clear();
+        ClientToNameScript.nameToClient.Clear();
         ClearLobby();
         MainScreen();
     }
@@ -128,9 +137,10 @@ public class TitleScreenScript : NetworkBehaviour
     {
 
         //Okay we received this client's name, so let add it to the server list and rebroadcast the current lobby status.
-        ClientToNameScript.playerNames.Add(serverRpcParams.Receive.SenderClientId, playerName);
+        ClientToNameScript.clientToName.Add(serverRpcParams.Receive.SenderClientId, playerName);
+        ClientToNameScript.nameToClient.Add(playerName, serverRpcParams.Receive.SenderClientId);
         ClearLobbyClientRpc();
-        foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.playerNames)
+        foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
             AddLobbyPlayerClientRpc(clientData.Value);
 
     }
@@ -164,18 +174,46 @@ public class TitleScreenScript : NetworkBehaviour
             }
 
             NetworkManager.Shutdown();
+            ClientToNameScript.clientToName.Clear();
+            ClientToNameScript.nameToClient.Clear();
             ClearLobby();
             MainScreen();
             return;
         }
         else
         {
-            ClientToNameScript.playerNames.Remove(serverRpcParams.Receive.SenderClientId);
+            ClientToNameScript.nameToClient.Remove(ClientToNameScript.clientToName[serverRpcParams.Receive.SenderClientId]);
+            ClientToNameScript.clientToName.Remove(serverRpcParams.Receive.SenderClientId);
             NetworkManager.DisconnectClient(serverRpcParams.Receive.SenderClientId);
         }
 
         ClearLobbyClientRpc();
-        foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.playerNames)
+        foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
+            AddLobbyPlayerClientRpc(clientData.Value);
+
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void LobbyKickPlayerServerRpc(string playerName, ServerRpcParams serverRpcParams = default)
+    {
+
+        ulong senderId = serverRpcParams.Receive.SenderClientId;
+        ulong clientId = ClientToNameScript.nameToClient[playerName];
+
+        ClientRpcParams clientRpcParams = new ClientRpcParams
+        {
+            Send = new ClientRpcSendParams
+            {
+                TargetClientIds = new ulong[] { clientId }
+            }
+        };
+        networkMessageClientRpc("Disconnected", "Host has kicked you from the lobby!", clientRpcParams);
+        ClientToNameScript.nameToClient.Remove(ClientToNameScript.clientToName[clientId]);
+        ClientToNameScript.clientToName.Remove(clientId);
+        NetworkManager.DisconnectClient(clientId);
+
+        ClearLobbyClientRpc();
+        foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
             AddLobbyPlayerClientRpc(clientData.Value);
 
     }
@@ -220,7 +258,7 @@ public class TitleScreenScript : NetworkBehaviour
                 soldier.SetActive(true);
                 LobbyPlayerScript lobbyPlayer = soldier.GetComponent<LobbyPlayerScript>();
                 if (lobbyPlayer != null)
-                    lobbyPlayer.initializePlayer(playerName, IsHost);
+                    lobbyPlayer.initializePlayer(playerName, (IsHost && playerName != options.playerInputField.text));
                 break;
             }
         }
