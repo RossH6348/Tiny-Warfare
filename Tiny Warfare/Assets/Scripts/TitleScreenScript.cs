@@ -24,6 +24,7 @@ public class TitleScreenScript : NetworkBehaviour
     [SerializeField] private InputField joinInput;
 
     [SerializeField] private List<GameObject> LobbySoldiers;
+    [SerializeField] private GameObject StartGameButton;
 
     // Start is called before the first frame update
     void Start()
@@ -108,6 +109,13 @@ public class TitleScreenScript : NetworkBehaviour
 
     }
 
+    public void StartLobbyGame()
+    {
+
+        LobbyStartGameServerRpc();
+
+    }
+
     private void onLobbyJoin(ulong clientId)
     {
 
@@ -142,7 +150,6 @@ public class TitleScreenScript : NetworkBehaviour
         ClearLobbyClientRpc();
         foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
             AddLobbyPlayerClientRpc(clientData.Value);
-
     }
 
     [ServerRpc(RequireOwnership = false)]
@@ -190,7 +197,6 @@ public class TitleScreenScript : NetworkBehaviour
         ClearLobbyClientRpc();
         foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
             AddLobbyPlayerClientRpc(clientData.Value);
-
     }
 
     [ServerRpc(RequireOwnership = false)]
@@ -215,6 +221,17 @@ public class TitleScreenScript : NetworkBehaviour
         ClearLobbyClientRpc();
         foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
             AddLobbyPlayerClientRpc(clientData.Value);
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void LobbyStartGameServerRpc(ServerRpcParams serverRpcParams = default)
+    {
+
+        //Check if it is the host that is sending this command.
+        if (serverRpcParams.Receive.SenderClientId != NetworkManager.ServerClientId)
+            return;
+
+        Debug.Log("STARTING GAME!");
 
     }
 
@@ -258,10 +275,13 @@ public class TitleScreenScript : NetworkBehaviour
                 soldier.SetActive(true);
                 LobbyPlayerScript lobbyPlayer = soldier.GetComponent<LobbyPlayerScript>();
                 if (lobbyPlayer != null)
-                    lobbyPlayer.initializePlayer(playerName, (IsHost && playerName != options.playerInputField.text));
+                    lobbyPlayer.initializePlayer(playerName, (NetworkManager.LocalClientId == NetworkManager.ServerClientId && playerName != options.playerInputField.text));
                 break;
             }
         }
+
+        //Check if there is enough players and is host to enable the start game button.
+        StartGameButton.SetActive((NetworkManager.LocalClientId == NetworkManager.ServerClientId && NetworkManager.ConnectedClients.Count > 1));
     }
 
     [ClientRpc]
