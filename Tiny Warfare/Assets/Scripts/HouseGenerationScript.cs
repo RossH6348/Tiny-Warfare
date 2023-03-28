@@ -3,14 +3,34 @@ using System.Collections.Generic;
 using UnityEngine;
 
 //This is to handle what floor type, but also what walls it should be occupying.
-
 public class TileData
 {
+
     public int room = -1;
     public int north = -1;
     public int east = -1;
     public int south = -1;
     public int west = -1;
+
+    public bool isOccupied = false;
+
+}
+
+public class RoomData
+{
+
+    public int room = -1;
+
+    public List<List<Vector2Int>> northWalls = new List<List<Vector2Int>>();
+    public List<List<Vector2Int>> eastWalls = new List<List<Vector2Int>>();
+    public List<List<Vector2Int>> southWalls = new List<List<Vector2Int>>();
+    public List<List<Vector2Int>> westWalls = new List<List<Vector2Int>>();
+
+    public RoomData(int roomType = -1)
+    {
+        room = roomType;
+    }
+
 }
 
 public class HouseGenerationScript : MonoBehaviour
@@ -28,6 +48,8 @@ public class HouseGenerationScript : MonoBehaviour
 
     //list containing the wall types prefabs.
     [SerializeField] private List<GameObject> wallTemplates = new List<GameObject>();
+    [SerializeField] private List<Material> wallMat = new List<Material>();
+    [SerializeField] private List<Material> railMat = new List<Material>();
     //ID table for each wall type.
     //0 - Wall
     //1 - Corner
@@ -38,6 +60,7 @@ public class HouseGenerationScript : MonoBehaviour
     //6 - Window Right End
 
     //A list of furnitures to use.
+    [SerializeField] private GameObject debugFurniture;
 
 
     private void Start()
@@ -79,9 +102,16 @@ public class HouseGenerationScript : MonoBehaviour
         }
 
         //FIRST STAGE OF GENERATION: HALLWAYS & ROOM REGIONS.
+        List<RoomData> Rooms = new List<RoomData>() { 
+            new RoomData(0), //Hallway
+            new RoomData(1), //Living Room
+            new RoomData(2), //Kitchen
+            new RoomData(3), //Bedroom
+            new RoomData(4) //Bathroom
+        };
 
         //Generate hallways.
-        bool isMainHorizontal = (Random.Range(0, 1) == 1);
+        bool isMainHorizontal = (Random.Range(0.0f, 1.0f) <= 0.5f);
         if (isMainHorizontal)
         {
             //It is horizontal
@@ -194,14 +224,17 @@ public class HouseGenerationScript : MonoBehaviour
             else if (edge[0].y > 0 && (!isVerticalDoors || Random.Range(0.0f, 1.0f) <= 0.5f))
             {
                 Vector2Int doorPos = edge[Random.Range(0, edge.Count - 1)];
-                houseData[doorPos.x][doorPos.y].north = 2;
-                houseData[doorPos.x][doorPos.y - 1].south = 2;
+                houseData[doorPos.x][doorPos.y].north = houseData[doorPos.x][doorPos.y - 1].south = 2;
+                houseData[doorPos.x][doorPos.y].isOccupied = houseData[doorPos.x][doorPos.y - 1].isOccupied = true;
             }
 
             //Fill in the rest with just normal walls.
             foreach (Vector2Int tilePos in edge)
                 if (houseData[tilePos.x][tilePos.y].north == -1)
                     houseData[tilePos.x][tilePos.y].north = 0;
+
+            //Now add this wall to the appropriate room region.
+            Rooms[houseData[edge[0].x][edge[0].y].room].northWalls.Add(edge);
 
         }
 
@@ -237,14 +270,17 @@ public class HouseGenerationScript : MonoBehaviour
             else if (edge[0].x > 0 && (isVerticalDoors || Random.Range(0.0f, 1.0f) <= 0.5f))
             {
                 Vector2Int doorPos = edge[Random.Range(0,edge.Count - 1)];
-                houseData[doorPos.x][doorPos.y].east = 2;
-                houseData[doorPos.x - 1][doorPos.y].west = 2;
+                houseData[doorPos.x][doorPos.y].east = houseData[doorPos.x - 1][doorPos.y].west = 2;
+                houseData[doorPos.x][doorPos.y].isOccupied = houseData[doorPos.x - 1][doorPos.y].isOccupied = true;
             }
 
             //Fill in the rest with just normal walls.
             foreach (Vector2Int tilePos in edge)
                 if (houseData[tilePos.x][tilePos.y].east == -1)
                     houseData[tilePos.x][tilePos.y].east = 0;
+
+            //Now add this wall to the appropriate room region.
+            Rooms[houseData[edge[0].x][edge[0].y].room].eastWalls.Add(edge);
         }
 
         foreach (List<Vector2Int> edge in southEdges)
@@ -282,6 +318,9 @@ public class HouseGenerationScript : MonoBehaviour
             foreach (Vector2Int tilePos in edge)
                 if (houseData[tilePos.x][tilePos.y].south == -1)
                     houseData[tilePos.x][tilePos.y].south = 0;
+
+            //Now add this wall to the appropriate room region.
+            Rooms[houseData[edge[0].x][edge[0].y].room].southWalls.Add(edge);
         }
 
         foreach (List<Vector2Int> edge in westEdges)
@@ -316,8 +355,11 @@ public class HouseGenerationScript : MonoBehaviour
 
             //Fill in the rest with just normal walls.
             foreach (Vector2Int tilePos in edge)
-            if (houseData[tilePos.x][tilePos.y].west == -1)
-                houseData[tilePos.x][tilePos.y].west = 0;
+                if (houseData[tilePos.x][tilePos.y].west == -1)
+                    houseData[tilePos.x][tilePos.y].west = 0;
+
+            //Now add this wall to the appropriate room region.
+            Rooms[houseData[edge[0].x][edge[0].y].room].westWalls.Add(edge);
         }
 
         //Now luckily for inner corners, two walls can meet together via two edges.
@@ -365,14 +407,23 @@ public class HouseGenerationScript : MonoBehaviour
                 GameObject tile = GameObject.Instantiate(floorTemplate, transform).gameObject;
                 tile.transform.localPosition = tilePos;
 
-                if (tileData.room < roomTileMat.Count)
-                    tile.transform.GetComponent<MeshRenderer>().material = roomTileMat[tileData.room];
+                tile.transform.GetComponent<MeshRenderer>().material = roomTileMat[tileData.room];
 
                 if(tileData.north  != -1)
                 {
                     tile = GameObject.Instantiate(wallTemplates[tileData.north], transform).gameObject;
                     tile.transform.localPosition = tilePos;
                     tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, -90.0f, 0.0f));
+
+                    MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
+                    Material[] wallMaterials = tileRender.materials;
+
+                    if (tileData.north != 2)
+                        wallMaterials[wallMaterials.Length - 1] = railMat[tileData.room];
+                    wallMaterials[wallMaterials.Length - 2] = wallMat[tileData.room];
+
+                    tileRender.materials = wallMaterials;
+
                 }
 
                 if (tileData.east != -1)
@@ -380,6 +431,16 @@ public class HouseGenerationScript : MonoBehaviour
                     tile = GameObject.Instantiate(wallTemplates[tileData.east], transform).gameObject;
                     tile.transform.localPosition = tilePos;
                     tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 0.0f, 0.0f));
+
+                    MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
+                    Material[] wallMaterials = tileRender.materials;
+
+                    if (tileData.east != 2)
+                        wallMaterials[wallMaterials.Length - 1] = railMat[tileData.room];
+                    wallMaterials[wallMaterials.Length - 2] = wallMat[tileData.room];
+
+                    tileRender.materials = wallMaterials;
+
                 }
 
                 if (tileData.south != -1)
@@ -387,6 +448,16 @@ public class HouseGenerationScript : MonoBehaviour
                     tile = GameObject.Instantiate(wallTemplates[tileData.south], transform).gameObject;
                     tile.transform.localPosition = tilePos;
                     tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 90.0f, 0.0f));
+
+                    MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
+                    Material[] wallMaterials = tileRender.materials;
+
+                    if (tileData.south != 2)
+                        wallMaterials[wallMaterials.Length - 1] = railMat[tileData.room];
+                    wallMaterials[wallMaterials.Length - 2] = wallMat[tileData.room];
+
+                    tileRender.materials = wallMaterials;
+
                 }
 
                 if (tileData.west != -1)
@@ -394,10 +465,23 @@ public class HouseGenerationScript : MonoBehaviour
                     tile = GameObject.Instantiate(wallTemplates[tileData.west], transform).gameObject;
                     tile.transform.localPosition = tilePos;
                     tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 180.0f, 0.0f));
+
+                    MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
+                    Material[] wallMaterials = tileRender.materials;
+
+                    if(tileData.west != 2)
+                        wallMaterials[wallMaterials.Length - 1] = railMat[tileData.room];
+                    wallMaterials[wallMaterials.Length - 2] = wallMat[tileData.room];
+
+                    tileRender.materials = wallMaterials;
                 }
 
             }
         }
+
+        for(int r = 0; r < Rooms.Count; r++)
+            for(int i = 0; i < 3; i++)
+                placeFurniture(Rooms[r], debugFurniture);
 
     }
 
@@ -543,6 +627,138 @@ public class HouseGenerationScript : MonoBehaviour
                 fillHouseGap(nextX, nextY, roomType);
             }
         }
+    }
+
+    //This function will place a random furniture given a room's boundaries walls.
+    public void placeFurniture(RoomData room, GameObject furniture)
+    {
+
+        if (room.northWalls.Count < 1)
+            return; //There is no available room if a single wall have no length? Do not proceed to place furniture.
+
+        //Get the furniture's properties.
+        FurnitureDataScript furnitureData = furniture.GetComponent<FurnitureDataScript>();
+        if (furnitureData == null)
+            return; //Do not proceed to place furniture if no furniture data is available.
+
+        //These will be our randomized range to generate the furniture's upcoming position.
+        int minX = -1, maxX = -1;
+        int minY = -1, maxY = -1;
+
+        int rotation = Random.Range(0,3); //How is the furniture rotated?
+        //0 - 0 degrees (North)
+        //1 - 90 degrees (East)
+        //2 - 180 degrees (South)
+        //3 - 270 degrees (West)
+
+        if (furnitureData.snapToEdge)
+        {
+            //This piece of furniture must be aligned against the wall, so pick a wall based on rotation that been picked.
+            List<Vector2Int> edgeWall = new List<Vector2Int>();
+
+            if (rotation == 0)
+                edgeWall = room.northWalls[Random.Range(0, room.northWalls.Count - 1)];
+            else if (rotation == 1)
+                edgeWall = room.eastWalls[Random.Range(0, room.eastWalls.Count - 1)];
+            else if (rotation == 2)
+                edgeWall = room.southWalls[Random.Range(0, room.southWalls.Count - 1)];
+            else if (rotation == 3)
+                edgeWall = room.westWalls[Random.Range(0, room.westWalls.Count - 1)];
+
+            minX = Mathf.Min(edgeWall[0].x, edgeWall[edgeWall.Count - 1].x);
+            maxX = Mathf.Max(edgeWall[0].x, edgeWall[edgeWall.Count - 1].x);
+
+            minY = Mathf.Min(edgeWall[0].y, edgeWall[edgeWall.Count - 1].y);
+            maxY = Mathf.Max(edgeWall[0].y, edgeWall[edgeWall.Count - 1].y);
+
+        }
+        else
+        {
+            //This piece of furniture is free to be place anywhere, we just need to get two walls to generate a position inbetween them.
+            //Pick a random north wall, (Picking north and south is the same as picking east and west.)
+            List<Vector2Int> northWall = room.northWalls[Random.Range(0, room.northWalls.Count - 1)];
+
+            //Sample the minX, maxX and minY from this chosen north wall.
+            minX = northWall[0].x;
+            maxX = northWall[northWall.Count - 1].x;
+            minY = northWall[0].y;
+
+            //Now pick a random south wall that is further away from the minY at least, and sample whatever is the smallest of maxX and largest of minX.
+            while (true)
+            {
+
+                List<Vector2Int> potentialSouth = room.southWalls[Random.Range(0, room.southWalls.Count - 1)];
+
+                if(potentialSouth[0].y > minY)
+                {
+                    //We found one! sample further!
+                    maxY = potentialSouth[0].y;
+                    minX = Mathf.Max(minX, potentialSouth[0].x);
+                    maxX = Mathf.Min(maxX, potentialSouth[potentialSouth.Count - 1].x);
+                    break; //Exit out of the loop.
+                }
+
+            }
+
+        }
+
+
+        //Get boundary of the furniture and change it based on rotation.
+        Vector2Int furnitureBoundary = furnitureData.boundary + new Vector2Int(-1, -1);
+        if (rotation == 1)
+            furnitureBoundary = new Vector2Int(furnitureBoundary.y, -furnitureBoundary.x);
+        else if(rotation == 2)
+            furnitureBoundary = new Vector2Int(-furnitureBoundary.x,-furnitureBoundary.y);
+        else if(rotation == 3)
+            furnitureBoundary = new Vector2Int(-furnitureBoundary.y, furnitureBoundary.x);
+
+        //Attempt to place the furniture.
+        bool canPlace = true;
+        Vector2Int furniturePos = new Vector2Int(Random.Range(minX, maxX), Random.Range(minY, maxY));
+        int startX = Mathf.Min(furniturePos.x, furniturePos.x + furnitureBoundary.x);
+        int startY = Mathf.Min(furniturePos.y, furniturePos.y + furnitureBoundary.y);
+
+        int endX = Mathf.Max(furniturePos.x, furniturePos.x + furnitureBoundary.x);
+        int endY = Mathf.Max(furniturePos.y, furniturePos.y + furnitureBoundary.y);
+
+        for(int x = startX; x <= endX; x++)
+        {
+            for(int y = startY; y <= endY; y++)
+            {
+                if (!withinRoom(x, y, room.room))
+                {
+                    canPlace = false;
+                    break;
+                }
+            }
+        }
+
+        if (canPlace)
+        {
+            GameObject newFurniture = GameObject.Instantiate(furniture, transform);
+            newFurniture.transform.localPosition = new Vector3((float)furniturePos.x, 0.0f, (float)furniturePos.y);
+            newFurniture.transform.localRotation = Quaternion.Euler(0.0f, (float)rotation * 90.0f, 0.0f);
+            newFurniture.SetActive(true);
+
+            //Update the tiles to say it is now occupied by a furniture
+            for (int x = startX; x <= endX; x++)
+                for (int y = startY; y <= endY; y++)
+                    houseData[x][y].isOccupied = true;
+        }
+
+    }
+
+    //This will check if a index position is within a room.
+    //This is to do the boundary checking for a furniture.
+    private bool withinRoom(int x, int y, int room)
+    {
+        if (x < 0 || x >= houseX || y < 0 || y >= houseY)
+            return false; //Out of bounds, return false immediately.
+
+        if (houseData[x][y].isOccupied)
+            return false; //This area of space is occupied by another furniture or possibly a doorway.
+
+        return (houseData[x][y].room == room); //Return if it is identical room.
     }
 
     //Network code for sending the house layout.
