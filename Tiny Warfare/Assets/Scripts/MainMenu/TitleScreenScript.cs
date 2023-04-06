@@ -26,6 +26,8 @@ public class TitleScreenScript : NetworkBehaviour
     [SerializeField] private List<GameObject> LobbySoldiers;
     [SerializeField] private GameObject StartGameButton;
 
+    [SerializeField] private MainGameScript mainGame;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -134,8 +136,9 @@ public class TitleScreenScript : NetworkBehaviour
     private void onLobbyLeave(ulong clientId)
     {
         NetworkManager.Shutdown();
-        ClientToNameScript.clientToName.Clear();
-        ClientToNameScript.nameToClient.Clear();
+        ClientGroupScript.clientToName.Clear();
+        ClientGroupScript.nameToClient.Clear();
+        ClientGroupScript.clientIsReady.Clear();
         ClearLobby();
         MainScreen();
     }
@@ -145,10 +148,11 @@ public class TitleScreenScript : NetworkBehaviour
     {
 
         //Okay we received this client's name, so let add it to the server list and rebroadcast the current lobby status.
-        ClientToNameScript.clientToName.Add(serverRpcParams.Receive.SenderClientId, playerName);
-        ClientToNameScript.nameToClient.Add(playerName, serverRpcParams.Receive.SenderClientId);
+        ClientGroupScript.clientToName.Add(serverRpcParams.Receive.SenderClientId, playerName);
+        ClientGroupScript.nameToClient.Add(playerName, serverRpcParams.Receive.SenderClientId);
+        ClientGroupScript.clientIsReady.Add(serverRpcParams.Receive.SenderClientId, false);
         ClearLobbyClientRpc();
-        foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
+        foreach (KeyValuePair<ulong, string> clientData in ClientGroupScript.clientToName)
             AddLobbyPlayerClientRpc(clientData.Value);
     }
 
@@ -181,21 +185,23 @@ public class TitleScreenScript : NetworkBehaviour
             }
 
             NetworkManager.Shutdown();
-            ClientToNameScript.clientToName.Clear();
-            ClientToNameScript.nameToClient.Clear();
+            ClientGroupScript.clientToName.Clear();
+            ClientGroupScript.nameToClient.Clear();
+            ClientGroupScript.clientIsReady.Clear();
             ClearLobby();
             MainScreen();
             return;
         }
         else
         {
-            ClientToNameScript.nameToClient.Remove(ClientToNameScript.clientToName[serverRpcParams.Receive.SenderClientId]);
-            ClientToNameScript.clientToName.Remove(serverRpcParams.Receive.SenderClientId);
+            ClientGroupScript.nameToClient.Remove(ClientGroupScript.clientToName[serverRpcParams.Receive.SenderClientId]);
+            ClientGroupScript.clientToName.Remove(serverRpcParams.Receive.SenderClientId);
+            ClientGroupScript.clientIsReady.Remove(serverRpcParams.Receive.SenderClientId);
             NetworkManager.DisconnectClient(serverRpcParams.Receive.SenderClientId);
         }
 
         ClearLobbyClientRpc();
-        foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
+        foreach (KeyValuePair<ulong, string> clientData in ClientGroupScript.clientToName)
             AddLobbyPlayerClientRpc(clientData.Value);
     }
 
@@ -204,7 +210,7 @@ public class TitleScreenScript : NetworkBehaviour
     {
 
         ulong senderId = serverRpcParams.Receive.SenderClientId;
-        ulong clientId = ClientToNameScript.nameToClient[playerName];
+        ulong clientId = ClientGroupScript.nameToClient[playerName];
 
         ClientRpcParams clientRpcParams = new ClientRpcParams
         {
@@ -214,12 +220,12 @@ public class TitleScreenScript : NetworkBehaviour
             }
         };
         networkMessageClientRpc("Disconnected", "Host has kicked you from the lobby!", clientRpcParams);
-        ClientToNameScript.nameToClient.Remove(ClientToNameScript.clientToName[clientId]);
-        ClientToNameScript.clientToName.Remove(clientId);
+        ClientGroupScript.nameToClient.Remove(ClientGroupScript.clientToName[clientId]);
+        ClientGroupScript.clientToName.Remove(clientId);
         NetworkManager.DisconnectClient(clientId);
 
         ClearLobbyClientRpc();
-        foreach (KeyValuePair<ulong, string> clientData in ClientToNameScript.clientToName)
+        foreach (KeyValuePair<ulong, string> clientData in ClientGroupScript.clientToName)
             AddLobbyPlayerClientRpc(clientData.Value);
     }
 
@@ -231,7 +237,17 @@ public class TitleScreenScript : NetworkBehaviour
         if (serverRpcParams.Receive.SenderClientId != NetworkManager.ServerClientId)
             return;
 
-        Debug.Log("STARTING GAME!");
+        //Tell all other clients to switch to the game scene
+        LobbyStartGameClientRpc();
+
+    }
+
+    [ClientRpc]
+    private void LobbyStartGameClientRpc(ClientRpcParams clientRpcParams = default)
+    {
+
+        gameObject.SetActive(false);
+        mainGame.InitializeGame();
 
     }
 

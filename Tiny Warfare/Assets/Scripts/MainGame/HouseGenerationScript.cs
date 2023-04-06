@@ -38,9 +38,9 @@ public class HouseGenerationScript : MonoBehaviour
 
 
     //Properties regarding the house's size, floor/room regions and so on.
-    [SerializeField] private int houseX = 10;
-    [SerializeField] private int houseY = 10;
-    private List<List<TileData>> houseData = new List<List<TileData>>();
+    [SerializeField] public int houseX = 10;
+    [SerializeField] public int houseY = 10;
+    public List<List<TileData>> houseData = new List<List<TileData>>();
 
     //A list of materials and tiles resources.
     [SerializeField] private List<Material> roomTileMat = new List<Material>();
@@ -62,20 +62,16 @@ public class HouseGenerationScript : MonoBehaviour
     //A list of furnitures to use.
     [SerializeField] private GameObject debugFurniture;
 
-
-    private void Start()
+    public void clearHouse()
     {
-        createHouse();
-    }
-
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Space))
-            createHouse();
+        //First clear the house children and data.
+        houseData.Clear();
+        for (int i = transform.childCount - 1; i > -1; i--)
+            Destroy(transform.GetChild(i).gameObject);
     }
 
     //Generation code.
-    void createHouse()
+    public void createHouse()
     {
 
         if (houseX < 8)
@@ -84,10 +80,7 @@ public class HouseGenerationScript : MonoBehaviour
         if (houseY < 8)
             houseY = 8;
 
-        //First clear the house children and data.
-        houseData.Clear();
-        for (int i = transform.childCount - 1; i > -1; i--)
-            Destroy(transform.GetChild(i).gameObject);
+        clearHouse();
 
         //Fill the empty houseData with a new blank grid.
         for (int x = 0; x < houseX; x++)
@@ -388,99 +381,8 @@ public class HouseGenerationScript : MonoBehaviour
         }
 
         //THIRD STAGE OF GENERATION:: FURNITURE/DECORATION.
-
-
-        //Begin creating all the objects.
-        for (int x = 0; x < houseX; x++)
-        {
-            for (int y = 0; y < houseY; y++)
-            {
-
-                TileData tileData = houseData[x][y];
-
-                if (tileData.room == -1)
-                    continue; //Empty tile, ignore for now.
-
-                Vector3 tilePos = new Vector3((float)x, 0.0f, (float)y);
-
-                //Handle floor tile.
-                GameObject tile = GameObject.Instantiate(floorTemplate, transform).gameObject;
-                tile.transform.localPosition = tilePos;
-
-                tile.transform.GetComponent<MeshRenderer>().material = roomTileMat[tileData.room];
-
-                if(tileData.north  != -1)
-                {
-                    tile = GameObject.Instantiate(wallTemplates[tileData.north], transform).gameObject;
-                    tile.transform.localPosition = tilePos;
-                    tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, -90.0f, 0.0f));
-
-                    MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
-                    Material[] wallMaterials = tileRender.materials;
-
-                    if (tileData.north != 2)
-                        wallMaterials[wallMaterials.Length - 1] = railMat[tileData.room];
-                    wallMaterials[wallMaterials.Length - 2] = wallMat[tileData.room];
-
-                    tileRender.materials = wallMaterials;
-
-                }
-
-                if (tileData.east != -1)
-                {
-                    tile = GameObject.Instantiate(wallTemplates[tileData.east], transform).gameObject;
-                    tile.transform.localPosition = tilePos;
-                    tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 0.0f, 0.0f));
-
-                    MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
-                    Material[] wallMaterials = tileRender.materials;
-
-                    if (tileData.east != 2)
-                        wallMaterials[wallMaterials.Length - 1] = railMat[tileData.room];
-                    wallMaterials[wallMaterials.Length - 2] = wallMat[tileData.room];
-
-                    tileRender.materials = wallMaterials;
-
-                }
-
-                if (tileData.south != -1)
-                {
-                    tile = GameObject.Instantiate(wallTemplates[tileData.south], transform).gameObject;
-                    tile.transform.localPosition = tilePos;
-                    tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 90.0f, 0.0f));
-
-                    MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
-                    Material[] wallMaterials = tileRender.materials;
-
-                    if (tileData.south != 2)
-                        wallMaterials[wallMaterials.Length - 1] = railMat[tileData.room];
-                    wallMaterials[wallMaterials.Length - 2] = wallMat[tileData.room];
-
-                    tileRender.materials = wallMaterials;
-
-                }
-
-                if (tileData.west != -1)
-                {
-                    tile = GameObject.Instantiate(wallTemplates[tileData.west], transform).gameObject;
-                    tile.transform.localPosition = tilePos;
-                    tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 180.0f, 0.0f));
-
-                    MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
-                    Material[] wallMaterials = tileRender.materials;
-
-                    if(tileData.west != 2)
-                        wallMaterials[wallMaterials.Length - 1] = railMat[tileData.room];
-                    wallMaterials[wallMaterials.Length - 2] = wallMat[tileData.room];
-
-                    tileRender.materials = wallMaterials;
-                }
-
-            }
-        }
-
-        for(int r = 0; r < Rooms.Count; r++)
-            for(int i = 0; i < 3; i++)
+        for (int r = 0; r < Rooms.Count; r++)
+            for (int i = 0; i < 3; i++)
                 placeFurniture(Rooms[r], debugFurniture);
 
     }
@@ -629,8 +531,91 @@ public class HouseGenerationScript : MonoBehaviour
         }
     }
 
+    //This function places a tile.
+    public void placeHouseTile(int x, int y, int room, int north, int east, int south, int west)
+    {
+
+        if (room == -1)
+            return;
+
+        Vector3 tilePos = new Vector3((float)x, 0.0f, (float)y);
+
+        //Handle floor tile.
+        GameObject tile = GameObject.Instantiate(floorTemplate, transform).gameObject;
+        tile.transform.localPosition = tilePos;
+
+        tile.transform.GetComponent<MeshRenderer>().material = roomTileMat[room];
+
+        if (north != -1)
+        {
+            tile = GameObject.Instantiate(wallTemplates[north], transform).gameObject;
+            tile.transform.localPosition = tilePos;
+            tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, -90.0f, 0.0f));
+
+            MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
+            Material[] wallMaterials = tileRender.materials;
+
+            if (north != 2)
+                wallMaterials[wallMaterials.Length - 1] = railMat[room];
+            wallMaterials[wallMaterials.Length - 2] = wallMat[room];
+
+            tileRender.materials = wallMaterials;
+
+        }
+
+        if (east != -1)
+        {
+            tile = GameObject.Instantiate(wallTemplates[east], transform).gameObject;
+            tile.transform.localPosition = tilePos;
+            tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 0.0f, 0.0f));
+
+            MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
+            Material[] wallMaterials = tileRender.materials;
+
+            if (east != 2)
+                wallMaterials[wallMaterials.Length - 1] = railMat[room];
+            wallMaterials[wallMaterials.Length - 2] = wallMat[room];
+
+            tileRender.materials = wallMaterials;
+
+        }
+
+        if (south != -1)
+        {
+            tile = GameObject.Instantiate(wallTemplates[south], transform).gameObject;
+            tile.transform.localPosition = tilePos;
+            tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 90.0f, 0.0f));
+
+            MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
+            Material[] wallMaterials = tileRender.materials;
+
+            if (south != 2)
+                wallMaterials[wallMaterials.Length - 1] = railMat[room];
+            wallMaterials[wallMaterials.Length - 2] = wallMat[room];
+
+            tileRender.materials = wallMaterials;
+
+        }
+
+        if (west != -1)
+        {
+            tile = GameObject.Instantiate(wallTemplates[west], transform).gameObject;
+            tile.transform.localPosition = tilePos;
+            tile.transform.localRotation = Quaternion.Euler(new Vector3(0.0f, 180.0f, 0.0f));
+
+            MeshRenderer tileRender = tile.GetComponent<MeshRenderer>();
+            Material[] wallMaterials = tileRender.materials;
+
+            if (west != 2)
+                wallMaterials[wallMaterials.Length - 1] = railMat[room];
+            wallMaterials[wallMaterials.Length - 2] = wallMat[room];
+
+            tileRender.materials = wallMaterials;
+        }
+    }
+
     //This function will place a random furniture given a room's boundaries walls.
-    public void placeFurniture(RoomData room, GameObject furniture)
+    private void placeFurniture(RoomData room, GameObject furniture)
     {
 
         if (room.northWalls.Count < 1)
