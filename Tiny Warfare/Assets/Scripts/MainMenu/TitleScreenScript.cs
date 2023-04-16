@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Unity.Netcode;
+using Unity.Netcode.Transports.UTP;
+using UnityEngine.Networking;
+using System.Net;
+using System.Net.Sockets;
 
 public class TitleScreenScript : NetworkBehaviour
 {
@@ -73,15 +77,41 @@ public class TitleScreenScript : NetworkBehaviour
     }
 
     //All networking related stuff will be done here.
+    public string getLocalAddress()
+    {
+
+        IPHostEntry hostEntry = Dns.GetHostEntry(Dns.GetHostName());
+        foreach (IPAddress ip in hostEntry.AddressList)
+            if (ip.AddressFamily == AddressFamily.InterNetwork)
+                return ip.ToString();
+
+        return "UNKNOWN";
+
+    }
+
     public void HostLobby()
     {
 
-        NetworkManager.StartHost();
+        //We need to attempt getting the player's local ip address to host on before we host!
+        string ipAddress = getLocalAddress();
 
-        if (cameraTarget != cameraLocations[2])
-            cameraTarget = cameraLocations[2];
+        if (!ipAddress.Equals("UNKNOWN"))
+        {
+            NetworkManager.GetComponent<UnityTransport>().ConnectionData.ServerListenAddress = ipAddress;
+            NetworkManager.StartHost();
+
+            if (cameraTarget != cameraLocations[2])
+                cameraTarget = cameraLocations[2];
+        }
+        else
+        {
+            networkDialog.SetActive(true);
+            networkTopic.text = "Host Failed";
+            networkText.text = "Unable to start a new host session, no network connectivity or invalid IPv4 address.";
+        }
 
     }
+
 
     public void JoinLobby()
     {
@@ -94,11 +124,10 @@ public class TitleScreenScript : NetworkBehaviour
     public void ConnectLobby()
     {
 
+        NetworkManager.GetComponent<UnityTransport>().ConnectionData.Address = joinInput.text;
         NetworkManager.StartClient();
         joinDialog.SetActive(false);
-
         LobbyScreen();
-
     }
 
     public void LeaveLobby()

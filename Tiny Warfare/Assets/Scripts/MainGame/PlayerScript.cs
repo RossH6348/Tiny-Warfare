@@ -11,6 +11,11 @@ public class PlayerScript : NetworkBehaviour
     private Rigidbody rigid;
     private Animator animator;
 
+    [SerializeField] private Transform chestBone;
+    private float minLook = -90.0f;
+    private float maxLook = 90.0f;
+    private NetworkVariable<float> look = new NetworkVariable<float>(0.0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
     private bool isGrounded = true;
     private bool isJumping = false;
 
@@ -69,6 +74,9 @@ public class PlayerScript : NetworkBehaviour
         transform.position += transform.right * moveVelocity.x * moveSpeed * Time.deltaTime;
         transform.position += transform.forward * moveVelocity.y * moveSpeed * Time.deltaTime;
 
+        float lookTurn = Input.GetAxis("Mouse Y") * 10.0f;
+        look.Value = Mathf.Clamp(look.Value + lookTurn, minLook, maxLook);
+
         float angleTurn = Input.GetAxis("Mouse X") * 10.0f;
         transform.localRotation = Quaternion.Euler(0.0f, transform.localRotation.eulerAngles.y + angleTurn, 0.0f);
 
@@ -112,6 +120,13 @@ public class PlayerScript : NetworkBehaviour
             FireShotgunServerRpc();
 
         shotgunAnimator.SetBool("triggerPulled", mousePressed);
+
+    }
+
+    private void LateUpdate()
+    {
+
+        chestBone.localRotation *= Quaternion.Euler(look.Value, 0.0f, 0.0f);
 
     }
 
