@@ -20,6 +20,12 @@ public class PlayerScript : NetworkBehaviour
 
     [SerializeField] private float moveSpeed = 2.0f;
 
+    //public NetworkVariable<string> PlayerName = new NetworkVariable<string>("Tiny Soldier");
+    public NetworkVariable<int> Health = new NetworkVariable<int>(100);
+    public NetworkVariable<float> Recoil = new NetworkVariable<float>(0.0f);
+    public ulong lastShot = 0; //Who was the person that landed the finishing shot?
+
+
     // Start is called before the first frame update
     void Start()
     {
@@ -32,6 +38,13 @@ public class PlayerScript : NetworkBehaviour
     // Update is called once per frame
     void Update()
     {
+
+        if (IsServer)
+        {
+            Recoil.Value -= Time.deltaTime; //Lower the amount of recoil of the shotgun over time.
+            if (Recoil.Value < 0.0f)
+                Recoil.Value = 0.0f;
+        }
 
         playerCamera.SetActive(IsOwner);
 
@@ -155,14 +168,24 @@ public class PlayerScript : NetworkBehaviour
                     {
 
                         //Get a random range.
-                        Vector3 velocity = Quaternion.AngleAxis(5.0f * Random.Range(0.0f, 1.0f), muzzleRight) * muzzleVec;
+                        Vector3 velocity = Quaternion.AngleAxis((4.0f + (6.0f * Recoil.Value)) * Random.Range(0.0f, 1.0f), muzzleRight) * muzzleVec;
                         velocity = Quaternion.AngleAxis(360.0f * Random.Range(0.0f, 1.0f), muzzleVec) * velocity;
 
                         float range = 100.0f;
 
                         RaycastHit hit;
                         if (Physics.Raycast(muzzlePos, velocity, out hit, range))
+                        {
                             range = (hit.point - muzzlePos).magnitude;
+
+                            PlayerScript victim = hit.collider.GetComponent<PlayerScript>();
+                            if (victim != null)
+                            {
+                                victim.lastShot = serverRpcParams.Receive.SenderClientId; //Record who was dealing the shot.
+                                victim.Health.Value -= 20; //Deal 20 damage to the victim.
+                            }
+
+                        }
 
                         trail.transform.position = muzzlePos + (velocity * range * 0.5f);
                         trail.transform.rotation = Quaternion.LookRotation(velocity);
@@ -175,6 +198,11 @@ public class PlayerScript : NetworkBehaviour
                     }
 
                 }
+
+                //After firing, increase recoil of the shotgun for 1.5 seconds, you gain 4 degrees of spread per seconds remaining, so at worse it is 10 degrees spread compared to 4.
+                Recoil.Value += 1.5f;
+                if (Recoil.Value > 1.5f)
+                    Recoil.Value = 1.5f;
 
             }
 

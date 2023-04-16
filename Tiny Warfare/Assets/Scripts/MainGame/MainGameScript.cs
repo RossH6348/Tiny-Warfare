@@ -1,25 +1,209 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 using Unity.Netcode;
 
 public class MainGameScript : NetworkBehaviour
 {
 
+    [SerializeField] private TitleScreenScript mainMenu;
+    [SerializeField] private OptionsScript options;
+
     [SerializeField] private HouseGenerationScript houseGenerator;
-    [SerializeField] private Camera gameCamera;
+    public GameObject gameCamera;
     [SerializeField] private GameObject PlayerPrefab;
 
+    public GameObject pauseMenu;
+
+    //All match data here
+    private Dictionary<ulong, int> totalKills = new Dictionary<ulong, int>();
+    private List<ulong> appendingRespawns = new List<ulong>();
+    private IEnumerator MatchCountdownLoop = null;
+
+    //All global UI related stuff.
+    [SerializeField] private Text headerText;
+
+    [SerializeField] private GameObject playerHUD;
+    [SerializeField] private Text nameText;
+    [SerializeField] private Transform healthBar;
+    [SerializeField] private Text healthText;
+
+    [SerializeField] private Transform Chat;
+    [SerializeField] private GameObject MessagePrefab;
+    private class Message
+    {
+        public GameObject textObj = null;
+        public float lifeTime = 10.0f;
+    }
+    private List<Message> ChatMessages = new List<Message>();
+
+    [SerializeField] private GameObject matchResults;
+    [SerializeField] private GameObject matchResultPrefab;
+    [SerializeField] private Transform matchResultsLeaderboard;
+
+    public void Update()
+    {
+
+        //Only do main game controls if the main menu is DEACTIVATED! (It means the player is in the actual game at that point.)
+        if (!mainMenu.titleCamera.activeSelf && !matchResults.activeSelf)
+        {
+
+            if (Input.GetKeyDown(KeyCode.Escape))
+                pauseMenu.SetActive(!pauseMenu.activeSelf);
+
+        }
+
+        //Handle hud stuff
+        NetworkClient localClient  = NetworkManager.LocalClient;
+        if (localClient != null)
+        {
+            NetworkObject localPlayer = localClient.PlayerObject;
+            playerHUD.SetActive(localPlayer != null);
+            if (localPlayer != null)
+            {
+                nameText.text = options.playerInputField.text;
+                int Health = localPlayer.GetComponent<PlayerScript>().Health.Value;
+                healthBar.transform.localScale = new Vector3((float)Health / 100.0f, 1.0f);
+                healthText.text = Health.ToString();
+            }
+        }
+
+        //Handle chat messages
+        for(int i = ChatMessages.Count - 1; i > -1; i--)
+        {
+            Message messageObj = ChatMessages[i];
+            messageObj.lifeTime -= Time.deltaTime;
+            if(messageObj.lifeTime <= 0.0f)
+            {
+                Destroy(messageObj.textObj);
+                ChatMessages.RemoveAt(i);
+                continue;
+            }
+            messageObj.textObj.transform.localPosition = Vector3.Lerp(messageObj.textObj.transform.localPosition, new Vector3(0.0f, -64.0f * (float)i), 5.0f * Time.deltaTime);
+        }
+
+        //Handle all server logic here!
+        if (NetworkManager.IsListening && IsHost)
+        {
+            foreach (NetworkClient client in NetworkManager.ConnectedClientsList)
+            {
+                NetworkObject playerObj = client.PlayerObject;
+                if(playerObj != null)
+                {
+                    PlayerScript playerData = playerObj.GetComponent<PlayerScript>();
+                    if (playerData.Health.Value <= 0)
+                        killPlayer(playerObj, playerData.lastShot);
+                }
+            }
+        }
+    }
 
     public void InitializeGame()
     {
         //Move the title screen camera to a position.
-        gameCamera.transform.position = new Vector3(5.0f, 15.0f, 5.0f);
-        gameCamera.transform.rotation = Quaternion.Euler(new Vector3(90.0f, 0.0f, 0.0f));
+        gameCamera.SetActive(true);
 
+        //Tell the server that we are ready!
         PlayerReadyServerRpc();
     }
+	
+	private void StartNewGame(){
 
+        //Tell all clients to clear their house map.
+        clearGameStateClientRpc();
+		
+		//BEGIN HOUSE GENERATION! (On the Host side at least.)
+		houseGenerator.createHouse();
+		
+		//Begin compressing each column of the house and send it to all clients.
+		for(int x = 0; x < houseGenerator.houseX; x++)
+		{
+
+			string column = "";
+
+			for(int y =0; y < houseGenerator.houseY; y++)
+			{
+
+				TileData tile = houseGenerator.houseData[x][y];
+
+				string newTile = x.ToString();
+				newTile = newTile + "," + y.ToString();
+				newTile = newTile + "," + tile.room.ToString();
+				newTile = newTile + "," + tile.north.ToString();
+				newTile = newTile + "," + tile.east.ToString();
+				newTile = newTile + "," + tile.south.ToString();
+				newTile = newTile + "," + tile.west.ToString();
+
+				column = column + newTile;
+				if (y < houseGenerator.houseY - 1)
+					column = column + " ";
+
+			}
+
+			PlaceHouseColumnClientRpc(column);
+
+		}
+
+		//Start all clients with 0 kills.
+		foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
+			if(!totalKills.ContainsKey(clientId))
+				totalKills.Add(clientId, 0);
+			else
+				totalKills[clientId] = 0;
+			
+		//Begin match countdown coroutine.
+		if (MatchCountdownLoop != null)
+			StopCoroutine(MatchCountdownLoop);
+		StartCoroutine(MatchCountdownLoop = MatchCountdown());
+		
+	}
+
+    IEnumerator MatchCountdown()
+    {
+        int seconds = 10;
+        while (seconds > 0)
+        {
+
+            setHeaderTextClientRpc("Match begins in " + seconds.ToString());
+            seconds--;
+            yield return new WaitForSeconds(1);
+        }
+
+        foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
+            spawnPlayer(clientId);
+
+        seconds = 30;
+        while (seconds > 0)
+        {
+
+            setHeaderTextClientRpc((seconds / 60).ToString() + ":" + (seconds % 60).ToString("00"));
+            seconds--;
+            yield return new WaitForSeconds(1);
+        }
+
+        //Clear all players and set spectator camera mode for all clients.
+		setHeaderTextClientRpc("");
+        setSpectateCameraClientRpc(true);
+        clearAllPlayers();
+
+        //Get all results and send them to all clients.
+        string matchResult = "";
+        for(int i = 0; i < NetworkManager.ConnectedClientsIds.Count; i++)
+        {
+            ulong clientId = NetworkManager.ConnectedClientsIds[i];
+
+            matchResult = matchResult + "<color=#fff000ff>" + ClientGroupScript.clientToName[clientId] + "</color> - " + totalKills[clientId].ToString();
+            if (i < NetworkManager.ConnectedClients.Count - 1)
+                matchResult = matchResult + ",";
+        }
+        showMatchResultsClientRpc(matchResult);
+		
+		Invoke("StartNewGame",10.0f);
+
+    }
+
+    //All network related stuff goes here!
     private void spawnPlayer(ulong clientId)
     {
 
@@ -34,18 +218,68 @@ public class MainGameScript : NetworkBehaviour
 
         GameObject Soldier = GameObject.Instantiate(PlayerPrefab, transform);
         Soldier.transform.localPosition = new Vector3((float)Random.Range(0, houseGenerator.houseX - 1) + 0.5f, 0.0f, (float)Random.Range(0, houseGenerator.houseY - 1) + 0.5f);
-        Soldier.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId);
+
+        NetworkObject networkSoldier = Soldier.GetComponent<NetworkObject>();
+        networkSoldier.SpawnAsPlayerObject(clientId);
 
     }
 
-    //Network related stuff here.
+    private void RespawnPlayer()
+    {
+
+        if(appendingRespawns.Count > 0)
+        {
+            spawnPlayer(appendingRespawns[0]);
+            appendingRespawns.RemoveAt(0);
+        }
+
+    }
+
+    private void killPlayer(NetworkObject victim, ulong killer)
+    {
+
+
+        messageSentClientRpc("<color=#fff000ff>" + ClientGroupScript.clientToName[victim.OwnerClientId] + "</color> <color=#ff0000ff>was killed by " + ClientGroupScript.clientToName[killer] + "</color>");
+        totalKills[killer]++;
+
+        ClientRpcParams clientRpcParams = new ClientRpcParams
+        {
+            Send = new ClientRpcSendParams
+            {
+                TargetClientIds = new ulong[] { victim.OwnerClientId }
+            }
+        };
+        setSpectateCameraClientRpc(true, clientRpcParams);
+        messageSentClientRpc("You will respawn in 5 seconds.", clientRpcParams);
+
+        victim.Despawn();
+
+        appendingRespawns.Add(victim.OwnerClientId);
+        Invoke("RespawnPlayer", 5.0f);
+
+    }
+
+    private void clearAllPlayers()
+    {
+
+        foreach (NetworkClient client in NetworkManager.ConnectedClientsList)
+            if (client.PlayerObject != null)
+                client.PlayerObject.Despawn();
+
+    }
+
+    public void LeaveGame()
+    {
+
+        GameDisconnectServerRpc();
+
+    }
+
     [ServerRpc(RequireOwnership = false)]
     private void PlayerReadyServerRpc(ServerRpcParams serverRpcParams = default)
     {
 
         ClientGroupScript.clientIsReady[serverRpcParams.Receive.SenderClientId] = true;
-
-        Debug.Log(ClientGroupScript.clientToName[serverRpcParams.Receive.SenderClientId] + " is ready!");
 
         //Check if all clients are ready?
         bool isEveryoneReady = true;
@@ -59,48 +293,112 @@ public class MainGameScript : NetworkBehaviour
         }
 
         if (isEveryoneReady)
+			StartNewGame();
+
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void GameDisconnectServerRpc(ServerRpcParams serverRpcParams = default)
+    {
+
+        ulong senderId = serverRpcParams.Receive.SenderClientId;
+        if (senderId == NetworkManager.ServerClientId)
         {
-            //BEGIN HOUSE GENERATION! (On the Host side at least.)
-            houseGenerator.createHouse();
-            
-            //Begin compressing each column of the house and send it to all clients.
-            for(int x = 0; x < houseGenerator.houseX; x++)
+
+            clearAllPlayers();
+            if (MatchCountdownLoop != null)
+                StopCoroutine(MatchCountdownLoop);
+
+            //We will need to tell all other clients before disconnecting them that the host left.
+            foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
             {
 
-                string column = "";
+                if (clientId == senderId)
+                    continue; //Host does not need to see the reason.
 
-                for(int y =0; y < houseGenerator.houseY; y++)
+                ClientRpcParams clientRpcParams = new ClientRpcParams
                 {
+                    Send = new ClientRpcSendParams
+                    {
+                        TargetClientIds = new ulong[] { clientId }
+                    }
+                };
 
-                    TileData tile = houseGenerator.houseData[x][y];
-
-                    string newTile = x.ToString();
-                    newTile = newTile + "," + y.ToString();
-                    newTile = newTile + "," + tile.room.ToString();
-                    newTile = newTile + "," + tile.north.ToString();
-                    newTile = newTile + "," + tile.east.ToString();
-                    newTile = newTile + "," + tile.south.ToString();
-                    newTile = newTile + "," + tile.west.ToString();
-
-                    column = column + newTile;
-                    if (y < houseGenerator.houseY - 1)
-                        column = column + " ";
-
-                }
-
-                PlaceHouseColumnClientRpc(column);
-
+                mainMenu.networkMessageClientRpc("Game Ended", "Host has decided to end the current game!", clientRpcParams);
             }
 
-            foreach(ulong clientId in NetworkManager.ConnectedClientsIds)
-                spawnPlayer(clientId);
+            ReturnToLobbyClientRpc();
+            return;
 
         }
+
+        //Store the client name for later use.
+        string clientName = ClientGroupScript.clientToName[serverRpcParams.Receive.SenderClientId];
+
+        //Remove them from the database.
+        ClientGroupScript.nameToClient.Remove(clientName);
+        ClientGroupScript.clientToName.Remove(serverRpcParams.Receive.SenderClientId);
+        ClientGroupScript.clientIsReady.Remove(serverRpcParams.Receive.SenderClientId);
+        NetworkManager.DisconnectClient(serverRpcParams.Receive.SenderClientId);
+
+        //Check if the host is the remaining player, if so send them straight to the menu screen with a reason.
+        if(NetworkManager.ConnectedClients.Count == 1)
+        {
+            clearAllPlayers();
+            if (MatchCountdownLoop != null)
+                StopCoroutine(MatchCountdownLoop);
+
+            mainMenu.networkMessageClientRpc("Game Ended", "Not enough players to continue the match!");
+            NetworkManager.Shutdown();
+            ClientGroupScript.clientToName.Clear();
+            ClientGroupScript.nameToClient.Clear();
+            ClientGroupScript.clientIsReady.Clear();
+
+            mainMenu.titleCamera.SetActive(true);
+            gameCamera.SetActive(false);
+            pauseMenu.SetActive(false);
+
+            mainMenu.ClearLobbyClientRpc();
+            mainMenu.MainScreen();
+            return;
+        }
+
+        //Announce to everyone that someone have left.
+        messageSentClientRpc("<color=#0000ffff>" + clientName + " has left the game!</color>");
+
+        //Also tell them to update their lobby state.
+        mainMenu.ClearLobbyClientRpc();
+        foreach (KeyValuePair<ulong, string> clientData in ClientGroupScript.clientToName)
+            mainMenu.AddLobbyPlayerClientRpc(clientData.Value);
 
     }
 
     [ClientRpc]
-    private void PlaceHouseColumnClientRpc(string column)
+    private void ReturnToLobbyClientRpc(ClientRpcParams clientRpcParams = default)
+    {
+
+        clearGameStateClientRpc(clientRpcParams);
+        gameCamera.SetActive(false);
+        mainMenu.titleCamera.SetActive(true);
+        pauseMenu.SetActive(false);
+
+    }
+
+    [ClientRpc]
+    private void clearGameStateClientRpc(ClientRpcParams clientRpcParams = default)
+    {
+        //Hide the match results and puase menu (They may be returning to lobby anyway).
+        matchResults.SetActive(false);
+        pauseMenu.SetActive(false);
+
+        //Clear the house map.
+        Transform house = houseGenerator.transform;
+        for (int i = house.childCount - 1; i > -1; i--)
+            Destroy(house.GetChild(i).gameObject);
+    }
+
+    [ClientRpc]
+    private void PlaceHouseColumnClientRpc(string column, ClientRpcParams clientRpcParams = default)
     {
         string[] tiles = column.Split(" ");
         foreach(string tile in tiles)
@@ -122,9 +420,54 @@ public class MainGameScript : NetworkBehaviour
     }
 
     [ClientRpc]
+    private void showMatchResultsClientRpc(string matchResult, ClientRpcParams clientRpcParams = default)
+    {
+        Debug.Log(matchResult);
+
+        //Clear the leaderboard.
+        for (int i = matchResultsLeaderboard.childCount - 1; i > -1; i--)
+            Destroy(matchResultsLeaderboard.GetChild(i).gameObject);
+
+        string[] results = matchResult.Split(",");
+        for(int i = 0; i < results.Length; i++)
+        {
+            GameObject result = GameObject.Instantiate(matchResultPrefab, matchResultsLeaderboard);
+            result.transform.localPosition = new Vector3(0.0f, -176.0f * (float)i);
+            result.GetComponentInChildren<Text>().text = results[i];
+        }
+
+        matchResults.SetActive(true);
+        pauseMenu.SetActive(false); //Players will be sent back the lobby after match results anyway.
+
+    }
+
+    [ClientRpc]
     private void setSpectateCameraClientRpc(bool status, ClientRpcParams clientRpcParams = default)
     {
-        gameCamera.enabled = status;
+        gameCamera.SetActive(status);
+    }
+
+    [ClientRpc]
+    private void setHeaderTextClientRpc(string header, ClientRpcParams clientRpcParams = default)
+    {
+        headerText.text = header;
+    }
+
+    [ClientRpc]
+    private void messageSentClientRpc(string message, ClientRpcParams clientRpcParams = default)
+    {
+
+        if (ChatMessages.Count >= 6)
+        {
+            Destroy(ChatMessages[0].textObj);
+            ChatMessages.RemoveAt(0);
+        }
+
+        Message newMessage = new Message();
+        newMessage.textObj = GameObject.Instantiate(MessagePrefab, Chat);
+        newMessage.textObj.transform.localPosition = new Vector3(0.0f, -64.0f * (float)ChatMessages.Count);
+        newMessage.textObj.GetComponent<Text>().text = message;
+        ChatMessages.Add(newMessage);
     }
 
 }

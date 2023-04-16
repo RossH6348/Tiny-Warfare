@@ -11,7 +11,7 @@ public class TitleScreenScript : NetworkBehaviour
     //[SerializeField] private NetworkManager Multiplayer;
     [SerializeField] private OptionsScript options;
 
-    [SerializeField] private Camera titleCamera;
+    public GameObject titleCamera;
 
     [SerializeField] private Transform cameraTarget;
     [SerializeField] private List<Transform> cameraLocations = new List<Transform>();
@@ -38,7 +38,6 @@ public class TitleScreenScript : NetworkBehaviour
 
         NetworkManager.OnClientConnectedCallback += onLobbyJoin;
         NetworkManager.OnClientDisconnectCallback += onLobbyLeave;
-
     }
 
     // Update is called once per frame
@@ -54,6 +53,12 @@ public class TitleScreenScript : NetworkBehaviour
     {
         if (cameraTarget != cameraLocations[0])
             cameraTarget = cameraLocations[0];
+    }
+
+    public void LobbyScreen()
+    {
+        if (cameraTarget != cameraLocations[2])
+            cameraTarget = cameraLocations[2];
     }
 
     public void OptionsScreen()
@@ -92,8 +97,7 @@ public class TitleScreenScript : NetworkBehaviour
         NetworkManager.StartClient();
         joinDialog.SetActive(false);
 
-        if (cameraTarget != cameraLocations[2])
-            cameraTarget = cameraLocations[2];
+        LobbyScreen();
 
     }
 
@@ -133,13 +137,18 @@ public class TitleScreenScript : NetworkBehaviour
 
     }
 
-    private void onLobbyLeave(ulong clientId)
+    public void onLobbyLeave(ulong clientId)
     {
         NetworkManager.Shutdown();
         ClientGroupScript.clientToName.Clear();
         ClientGroupScript.nameToClient.Clear();
         ClientGroupScript.clientIsReady.Clear();
-        ClearLobby();
+
+        titleCamera.SetActive(true);
+        mainGame.gameCamera.SetActive(false);
+        mainGame.pauseMenu.SetActive(false);
+
+        ClearLobbyClientRpc();
         MainScreen();
     }
 
@@ -157,7 +166,7 @@ public class TitleScreenScript : NetworkBehaviour
     }
 
     [ServerRpc(RequireOwnership = false)]
-    private void LobbyDisconnectServerRpc(ServerRpcParams serverRpcParams = default)
+    public void LobbyDisconnectServerRpc(ServerRpcParams serverRpcParams = default)
     {
 
         //Okay this client wants to disconnect, let find the client's playername to remove and rebroadcast.
@@ -188,7 +197,7 @@ public class TitleScreenScript : NetworkBehaviour
             ClientGroupScript.clientToName.Clear();
             ClientGroupScript.nameToClient.Clear();
             ClientGroupScript.clientIsReady.Clear();
-            ClearLobby();
+            ClearLobbyClientRpc();
             MainScreen();
             return;
         }
@@ -246,7 +255,7 @@ public class TitleScreenScript : NetworkBehaviour
     private void LobbyStartGameClientRpc(ClientRpcParams clientRpcParams = default)
     {
 
-        gameObject.SetActive(false);
+        titleCamera.SetActive(false);
         mainGame.InitializeGame();
 
     }
@@ -261,7 +270,7 @@ public class TitleScreenScript : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void ClearLobbyClientRpc(ClientRpcParams clientRpcParams = default)
+    public void ClearLobbyClientRpc(ClientRpcParams clientRpcParams = default)
     {
 
         ClearLobby();
@@ -275,7 +284,7 @@ public class TitleScreenScript : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void AddLobbyPlayerClientRpc(string playerName, ClientRpcParams clientRpcParams = default)
+    public void AddLobbyPlayerClientRpc(string playerName, ClientRpcParams clientRpcParams = default)
     {
 
         AddLobbyPlayer(playerName);
@@ -301,7 +310,7 @@ public class TitleScreenScript : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void networkMessageClientRpc(string topic = "", string reason = "", ClientRpcParams clientRpcParams = default)
+    public void networkMessageClientRpc(string topic = "", string reason = "", ClientRpcParams clientRpcParams = default)
     {
         networkDialog.SetActive(true);
         networkTopic.text = topic;

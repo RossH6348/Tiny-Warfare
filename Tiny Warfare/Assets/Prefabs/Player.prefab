@@ -2122,6 +2122,8 @@ MonoBehaviour:
   muzzlePoint: {fileID: 2921594563022970909}
   shotgunAnimator: {fileID: 2972008649570161643}
   moveSpeed: 2
+  Health:
+    m_InternalValue: 100
   trailPrefab: {fileID: 2314840369416442118, guid: 698e22d94863bd74397361df8976b465, type: 3}
 --- !u!114 &2738148782042327507
 MonoBehaviour:

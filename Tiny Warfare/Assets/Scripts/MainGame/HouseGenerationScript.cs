@@ -457,7 +457,7 @@ public class HouseGenerationScript : MonoBehaviour
                     }
 
                     //Now see if we can add this as an "edge"
-                    if (x == (direction ? houseX - 1 : 0) || houseData[x + +(direction ? 1 : -1)][y].room != targetType)
+                    if (x == (direction ? houseX - 1 : 0) || houseData[x + (direction ? 1 : -1)][y].room != targetType)
                     {
                         Edge.Add(new Vector2Int(x, y));
                     }
