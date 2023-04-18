@@ -145,8 +145,12 @@ public class MainGameScript : NetworkBehaviour
 
 		}
 
-		//Start all clients with 0 kills.
-		foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
+        //Furnitures are already compressed by the generator, so we can just send all clients each entry.
+        foreach (string furniture in houseGenerator.furnitures)
+            PlaceFurnitureClientRpc(furniture);
+
+        //Start all clients with 0 kills.
+        foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
 			if(!totalKills.ContainsKey(clientId))
 				totalKills.Add(clientId, 0);
 			else
@@ -173,7 +177,7 @@ public class MainGameScript : NetworkBehaviour
         foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
             spawnPlayer(clientId);
 
-        seconds = 30;
+        seconds = 600;
         while (seconds > 0)
         {
 
@@ -417,6 +421,12 @@ public class MainGameScript : NetworkBehaviour
 
         }
 
+    }
+
+    [ClientRpc]
+    private void PlaceFurnitureClientRpc(string furniture, ClientRpcParams clientRpcParams = default)
+    {
+        houseGenerator.placeFurniture(furniture);
     }
 
     [ClientRpc]

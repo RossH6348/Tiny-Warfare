@@ -41,6 +41,7 @@ public class HouseGenerationScript : MonoBehaviour
     [SerializeField] public int houseX = 10;
     [SerializeField] public int houseY = 10;
     public List<List<TileData>> houseData = new List<List<TileData>>();
+    public List<string> furnitures = new List<string>();
 
     //A list of materials and tiles resources.
     [SerializeField] private List<Material> roomTileMat = new List<Material>();
@@ -59,13 +60,11 @@ public class HouseGenerationScript : MonoBehaviour
     //5 - Window Middle
     //6 - Window Right End
 
-    //A list of furnitures to use.
-    [SerializeField] private GameObject debugFurniture;
-
     public void clearHouse()
     {
         //First clear the house children and data.
         houseData.Clear();
+        furnitures.Clear();
         for (int i = transform.childCount - 1; i > -1; i--)
             Destroy(transform.GetChild(i).gameObject);
     }
@@ -381,9 +380,9 @@ public class HouseGenerationScript : MonoBehaviour
         }
 
         //THIRD STAGE OF GENERATION:: FURNITURE/DECORATION.
-        for (int r = 0; r < Rooms.Count; r++)
+        for (int r = 0; r < Rooms.Count; r++) 
             for (int i = 0; i < 3; i++)
-                placeFurniture(Rooms[r], debugFurniture);
+                generateFurniture(Rooms[r], "DebugTable");
 
     }
 
@@ -614,12 +613,18 @@ public class HouseGenerationScript : MonoBehaviour
         }
     }
 
-    //This function will place a random furniture given a room's boundaries walls.
-    private void placeFurniture(RoomData room, GameObject furniture)
+    //This function will generate a random furniture given a room's boundaries walls.
+    private void generateFurniture(RoomData room, string furnitureID)
     {
 
         if (room.northWalls.Count < 1)
             return; //There is no available room if a single wall have no length? Do not proceed to place furniture.
+
+        //Load in the furniture that need to be placed, skip if it can't be located.
+        GameObject furniture = Resources.Load("Furnitures/" + furnitureID) as GameObject;
+
+        if (furniture == null)
+            return; //No furniture matching ID is found, skip.
 
         //Get the furniture's properties.
         FurnitureDataScript furnitureData = furniture.GetComponent<FurnitureDataScript>();
@@ -720,16 +725,29 @@ public class HouseGenerationScript : MonoBehaviour
 
         if (canPlace)
         {
-            GameObject newFurniture = GameObject.Instantiate(furniture, transform);
-            newFurniture.transform.localPosition = new Vector3((float)furniturePos.x, 0.0f, (float)furniturePos.y);
-            newFurniture.transform.localRotation = Quaternion.Euler(0.0f, (float)rotation * 90.0f, 0.0f);
-            newFurniture.SetActive(true);
+            //Store this furniture in the list of furnitures that will be sent over the network:
+            furnitures.Add(furnitureID + "," + furniturePos.x.ToString() + "," + furniturePos.y.ToString() + "," + (rotation * 90).ToString());
 
             //Update the tiles to say it is now occupied by a furniture
             for (int x = startX; x <= endX; x++)
                 for (int y = startY; y <= endY; y++)
                     houseData[x][y].isOccupied = true;
         }
+
+    }
+
+    //This function will place a furniture piece received from the server.
+    public void placeFurniture(string furniture)
+    {
+
+        string[] furnitureData = furniture.Split(",");
+        GameObject furnitureObj = Resources.Load("Furnitures/" + furnitureData[0]) as GameObject;
+        if (furnitureObj == null)
+            return; //If no object is found, skip placing this furniture. (Yes this will cause major desync issues, but the generation code also checks this so really no desync should happen.)
+
+        GameObject newFurniture = GameObject.Instantiate(furnitureObj, transform);
+        newFurniture.transform.localPosition = new Vector3(float.Parse(furnitureData[1]), 0.0f, float.Parse(furnitureData[2]));
+        newFurniture.transform.localRotation = Quaternion.Euler(0.0f, float.Parse(furnitureData[3]), 0.0f);
 
     }
 
