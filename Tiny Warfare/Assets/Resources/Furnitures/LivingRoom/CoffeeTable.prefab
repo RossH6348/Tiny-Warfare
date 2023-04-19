@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2563886498911123648}
   - component: {fileID: 2602649931186023430}
   m_Layer: 0
-  m_Name: DebugTable
+  m_Name: CoffeeTable
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -46,7 +46,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   boundary: {x: 2, y: 1}
-  snapToEdge: 1
+  snapToEdge: 0
 --- !u!1 &6148216560576584355
 GameObject:
   m_ObjectHideFlags: 0

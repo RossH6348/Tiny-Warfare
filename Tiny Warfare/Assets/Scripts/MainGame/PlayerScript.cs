@@ -56,6 +56,9 @@ public class PlayerScript : NetworkBehaviour
         if (!IsOwner)
             return;
 
+        if (Cursor.lockState != CursorLockMode.Locked)
+            return;
+
         Vector2 moveVelocity = Vector2.zero;
         if (Input.GetKey(KeyCode.W))
             moveVelocity.y += 1.0f;
@@ -92,7 +95,7 @@ public class PlayerScript : NetworkBehaviour
         if (isGrounded && !isJumping && Input.GetKeyDown(KeyCode.Space))
         {
             isJumping = true;
-            rigid.velocity = Physics.gravity * -0.5f;
+            rigid.velocity = Physics.gravity * -0.3334f;
             transform.position += new Vector3(0.0f, 0.1f, 0.0f); //So they ain't immediately touching the ground.
             isGrounded = false;
         }

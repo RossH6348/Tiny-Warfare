@@ -55,6 +55,13 @@ public class TitleScreenScript : NetworkBehaviour
 
     public void MainScreen()
     {
+
+        titleCamera.SetActive(true);
+        mainGame.gameCamera.SetActive(false);
+        mainGame.pauseMenu.SetActive(false);
+        mainGame.matchResults.SetActive(false);
+        mainGame.Overlay.SetActive(false);
+
         if (cameraTarget != cameraLocations[0])
             cameraTarget = cameraLocations[0];
     }
@@ -172,10 +179,6 @@ public class TitleScreenScript : NetworkBehaviour
         ClientGroupScript.clientToName.Clear();
         ClientGroupScript.nameToClient.Clear();
         ClientGroupScript.clientIsReady.Clear();
-
-        titleCamera.SetActive(true);
-        mainGame.gameCamera.SetActive(false);
-        mainGame.pauseMenu.SetActive(false);
 
         ClearLobbyClientRpc();
         MainScreen();

@@ -22,6 +22,7 @@ public class MainGameScript : NetworkBehaviour
     private IEnumerator MatchCountdownLoop = null;
 
     //All global UI related stuff.
+    [SerializeField] public GameObject Overlay;
     [SerializeField] private Text headerText;
 
     [SerializeField] private GameObject playerHUD;
@@ -38,7 +39,7 @@ public class MainGameScript : NetworkBehaviour
     }
     private List<Message> ChatMessages = new List<Message>();
 
-    [SerializeField] private GameObject matchResults;
+    [SerializeField] public GameObject matchResults;
     [SerializeField] private GameObject matchResultPrefab;
     [SerializeField] private Transform matchResultsLeaderboard;
 
@@ -54,6 +55,8 @@ public class MainGameScript : NetworkBehaviour
 
         }
 
+        Cursor.lockState = CursorLockMode.None;
+
         //Handle hud stuff
         NetworkClient localClient  = NetworkManager.LocalClient;
         if (localClient != null)
@@ -66,6 +69,10 @@ public class MainGameScript : NetworkBehaviour
                 int Health = localPlayer.GetComponent<PlayerScript>().Health.Value;
                 healthBar.transform.localScale = new Vector3((float)Health / 100.0f, 1.0f);
                 healthText.text = Health.ToString();
+
+                if (!matchResults.activeSelf && !pauseMenu.activeSelf)
+                    Cursor.lockState = CursorLockMode.Locked;
+
             }
         }
 
@@ -103,6 +110,7 @@ public class MainGameScript : NetworkBehaviour
     {
         //Move the title screen camera to a position.
         gameCamera.SetActive(true);
+        Overlay.SetActive(true);
 
         //Tell the server that we are ready!
         PlayerReadyServerRpc();
@@ -221,7 +229,12 @@ public class MainGameScript : NetworkBehaviour
         setSpectateCameraClientRpc(false, clientRpcParams);
 
         GameObject Soldier = GameObject.Instantiate(PlayerPrefab, transform);
-        Soldier.transform.localPosition = new Vector3((float)Random.Range(0, houseGenerator.houseX - 1) + 0.5f, 0.0f, (float)Random.Range(0, houseGenerator.houseY - 1) + 0.5f);
+
+        Vector2Int spawnPos = new Vector2Int(Random.Range(0, houseGenerator.houseX - 1), Random.Range(0, houseGenerator.houseY - 1));
+        while(houseGenerator.houseData[spawnPos.x][spawnPos.y].isOccupied)
+            spawnPos = new Vector2Int(Random.Range(0, houseGenerator.houseX - 1), Random.Range(0, houseGenerator.houseY - 1));
+
+        Soldier.transform.localPosition = new Vector3((float)spawnPos.x, 0.0f, (float)spawnPos.y);
 
         NetworkObject networkSoldier = Soldier.GetComponent<NetworkObject>();
         networkSoldier.SpawnAsPlayerObject(clientId);
@@ -265,7 +278,7 @@ public class MainGameScript : NetworkBehaviour
 
     private void clearAllPlayers()
     {
-
+        appendingRespawns.Clear();
         foreach (NetworkClient client in NetworkManager.ConnectedClientsList)
             if (client.PlayerObject != null)
                 client.PlayerObject.Despawn();
@@ -310,8 +323,7 @@ public class MainGameScript : NetworkBehaviour
         {
 
             clearAllPlayers();
-            if (MatchCountdownLoop != null)
-                StopCoroutine(MatchCountdownLoop);
+            StopAllCoroutines();
 
             //We will need to tell all other clients before disconnecting them that the host left.
             foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
@@ -349,8 +361,8 @@ public class MainGameScript : NetworkBehaviour
         if(NetworkManager.ConnectedClients.Count == 1)
         {
             clearAllPlayers();
-            if (MatchCountdownLoop != null)
-                StopCoroutine(MatchCountdownLoop);
+            StopAllCoroutines();
+            Overlay.SetActive(false);
 
             mainMenu.networkMessageClientRpc("Game Ended", "Not enough players to continue the match!");
             NetworkManager.Shutdown();
@@ -384,7 +396,7 @@ public class MainGameScript : NetworkBehaviour
         clearGameStateClientRpc(clientRpcParams);
         gameCamera.SetActive(false);
         mainMenu.titleCamera.SetActive(true);
-        pauseMenu.SetActive(false);
+        Overlay.SetActive(false);
 
     }
 

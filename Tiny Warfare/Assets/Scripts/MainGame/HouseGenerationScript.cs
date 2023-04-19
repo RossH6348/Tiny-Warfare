@@ -380,9 +380,29 @@ public class HouseGenerationScript : MonoBehaviour
         }
 
         //THIRD STAGE OF GENERATION:: FURNITURE/DECORATION.
-        for (int r = 0; r < Rooms.Count; r++) 
-            for (int i = 0; i < 3; i++)
-                generateFurniture(Rooms[r], "DebugTable");
+        for (int r = 1; r < Rooms.Count; r++)
+        {
+            string Room = "";
+            switch (r)
+            {
+                case 1:
+                    Room = "LivingRoom";
+                    break;
+                case 2:
+                    Room = "Kitchen";
+                    break;
+                case 3:
+                    Room = "Bedroom";
+                    break;
+                case 4:
+                    Room = "Bathroom";
+                    break;
+            }
+
+            GameObject[] RoomFurnitures = Resources.LoadAll<GameObject>("Furnitures/" + Room + "/");
+            for (int i = Random.Range(6,3); i > 0; i--)
+                generateFurniture(Rooms[r], Room + "/" + RoomFurnitures[Random.Range(0, RoomFurnitures.Length - 1)].name);
+        }
 
     }
 
