@@ -78,10 +78,10 @@ public class PlayerScript : NetworkBehaviour
         transform.position += transform.right * moveVelocity.x * moveSpeed * Time.deltaTime;
         transform.position += transform.forward * moveVelocity.y * moveSpeed * Time.deltaTime;
 
-        float lookTurn = Input.GetAxis("Mouse Y") * 10.0f;
+        float lookTurn = Input.GetAxis("Mouse Y") * 10.0f * GlobalOptions.sensitivity;
         look.Value = Mathf.Clamp(look.Value + lookTurn, minLook, maxLook);
 
-        float angleTurn = Input.GetAxis("Mouse X") * 10.0f;
+        float angleTurn = Input.GetAxis("Mouse X") * 10.0f * GlobalOptions.sensitivity;
         transform.localRotation = Quaternion.Euler(0.0f, transform.localRotation.eulerAngles.y + angleTurn, 0.0f);
 
         //-1 - Not moving.

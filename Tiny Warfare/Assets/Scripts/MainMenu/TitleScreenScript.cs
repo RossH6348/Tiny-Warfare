@@ -7,6 +7,9 @@ using Unity.Netcode.Transports.UTP;
 using UnityEngine.Networking;
 using System.Net;
 using System.Net.Sockets;
+using System.IO;
+using System.Text;
+using System;
 
 public class TitleScreenScript : NetworkBehaviour
 {
@@ -32,12 +35,18 @@ public class TitleScreenScript : NetworkBehaviour
 
     [SerializeField] private MainGameScript mainGame;
 
+    [SerializeField] private GameObject addressCanvas;
+    [SerializeField] private Text localAddressText;
+    [SerializeField] private Text publicAddressText;
+    [SerializeField] private Text portText;
+
     // Start is called before the first frame update
     void Start()
     {
 
         networkDialog.SetActive(false);
         joinDialog.SetActive(false);
+        addressCanvas.SetActive(false);
         networkTopic.text = networkText.text = joinInput.text = "";
 
         NetworkManager.OnClientConnectedCallback += onLobbyJoin;
@@ -61,6 +70,7 @@ public class TitleScreenScript : NetworkBehaviour
         mainGame.pauseMenu.SetActive(false);
         mainGame.matchResults.SetActive(false);
         mainGame.Overlay.SetActive(false);
+        addressCanvas.SetActive(false);
 
         if (cameraTarget != cameraLocations[0])
             cameraTarget = cameraLocations[0];
@@ -84,6 +94,7 @@ public class TitleScreenScript : NetworkBehaviour
     }
 
     //All networking related stuff will be done here.
+    //Credit goes to Honorsoft for this local address finder: https://answers.unity.com/questions/1731994/get-the-device-ip-address-from-unity.html
     public string getLocalAddress()
     {
 
@@ -93,6 +104,36 @@ public class TitleScreenScript : NetworkBehaviour
                 return ip.ToString();
 
         return "UNKNOWN";
+
+    }
+
+    //Credit goes to CosmoM for this public address finder: https://forum.unity.com/threads/how-to-get-the-client-lan-ip-address.1306539/
+    private string getPublicAddress()
+    {
+        publicAddressText.text = "Fetching public IP...";
+
+        string publicIP = "Unable to get public IP";
+        HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://api.ipify.org");
+        request.Method = "GET";
+        request.Timeout = 1000; //time in ms
+        try
+        {
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            if (response.StatusCode == HttpStatusCode.OK)
+            {
+                Stream stream = response.GetResponseStream();
+                StreamReader reader = new StreamReader(stream, Encoding.UTF8);
+                publicIP = "Public IP: " + reader.ReadToEnd();
+            } 
+        }
+        catch (WebException ex)
+        {
+            publicIP = "No internet found";
+        }
+
+        request.Abort(); //Close down the connection request.
+
+        return publicIP;
 
     }
 
@@ -107,6 +148,11 @@ public class TitleScreenScript : NetworkBehaviour
             NetworkManager.GetComponent<UnityTransport>().ConnectionData.ServerListenAddress = ipAddress;
             NetworkManager.StartHost();
 
+            addressCanvas.SetActive(true);
+            localAddressText.text = "Local IP: " + ipAddress;
+            publicAddressText.text = getPublicAddress();
+            portText.text = "Port: " + NetworkManager.GetComponent<UnityTransport>().ConnectionData.Port.ToString();
+
             if (cameraTarget != cameraLocations[2])
                 cameraTarget = cameraLocations[2];
         }
@@ -114,7 +160,7 @@ public class TitleScreenScript : NetworkBehaviour
         {
             networkDialog.SetActive(true);
             networkTopic.text = "Host Failed";
-            networkText.text = "Unable to start a new host session, no network connectivity or invalid IPv4 address.";
+            networkText.text = "Unable to start a new host session, no network connectivity available or invalid IPv4 address.";
         }
 
     }

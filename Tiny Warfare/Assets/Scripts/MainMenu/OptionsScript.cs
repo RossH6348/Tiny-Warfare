@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+public static class GlobalOptions
+{
+    public static float sensitivity = 1.0f;
+}
+
 public class OptionsScript : MonoBehaviour
 {
 
@@ -36,7 +41,7 @@ public class OptionsScript : MonoBehaviour
     public void onSensitivityChange(float sensitivity)
     {
         //Update the sensitivity.
-        sensitivitySlider.value = sensitivitySliderB.value = sensitivity;
+        GlobalOptions.sensitivity = sensitivitySlider.value = sensitivitySliderB.value = sensitivity;
         sensitivityText.text = sensitivityTextB.text = Mathf.FloorToInt(sensitivity * 100.0f).ToString() + "%";
     }
 
