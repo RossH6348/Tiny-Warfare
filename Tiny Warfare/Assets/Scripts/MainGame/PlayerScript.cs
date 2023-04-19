@@ -27,7 +27,8 @@ public class PlayerScript : NetworkBehaviour
 
     //public NetworkVariable<string> PlayerName = new NetworkVariable<string>("Tiny Soldier");
     public NetworkVariable<int> Health = new NetworkVariable<int>(100);
-    public NetworkVariable<float> Recoil = new NetworkVariable<float>(0.0f);
+    private float Recoil = 0.0f;
+    private float lastFire = 0.0f;
     public ulong lastShot = 0; //Who was the person that landed the finishing shot?
 
 
@@ -46,9 +47,9 @@ public class PlayerScript : NetworkBehaviour
 
         if (IsServer)
         {
-            Recoil.Value -= Time.deltaTime; //Lower the amount of recoil of the shotgun over time.
-            if (Recoil.Value < 0.0f)
-                Recoil.Value = 0.0f;
+            Recoil -= Time.deltaTime; //Lower the amount of recoil of the shotgun over time.
+            if (Recoil < 0.0f)
+                Recoil = 0.0f;
         }
 
         playerCamera.SetActive(IsOwner);
@@ -56,7 +57,7 @@ public class PlayerScript : NetworkBehaviour
         if (!IsOwner)
             return;
 
-        if (Cursor.lockState != CursorLockMode.Locked)
+        if (Cursor.lockState != CursorLockMode.Locked && false)
             return;
 
         Vector2 moveVelocity = Vector2.zero;
@@ -117,13 +118,8 @@ public class PlayerScript : NetworkBehaviour
 
         isJumping = false;
 
-        bool mousePressed = Input.GetMouseButtonDown(0);
-
-        if (mousePressed)
+        if (Input.GetMouseButtonDown(0))
             FireShotgunServerRpc();
-
-        shotgunAnimator.SetBool("triggerPulled", mousePressed);
-
     }
 
     private void LateUpdate()
@@ -162,6 +158,10 @@ public class PlayerScript : NetworkBehaviour
     private void FireShotgunServerRpc(ServerRpcParams serverRpcParams = default)
     {
 
+        //Check if their firerate have cooled off yet.
+        if (shotgunAnimator.GetCurrentAnimatorStateInfo(0).IsName("Fire") && shotgunAnimator.GetCurrentAnimatorStateInfo(0).normalizedTime < 1.0f)
+            return; //It hasn't yet, so don't allow the shotgun to be fired!
+
         //Get the player object if we could.
         NetworkObject playerObject = NetworkManager.Singleton.ConnectedClients[serverRpcParams.Receive.SenderClientId].PlayerObject;
         if (playerObject != null)
@@ -186,7 +186,7 @@ public class PlayerScript : NetworkBehaviour
                     {
 
                         //Get a random range.
-                        Vector3 velocity = Quaternion.AngleAxis((4.0f + (6.0f * Recoil.Value)) * Random.Range(0.0f, 1.0f), muzzleRight) * muzzleVec;
+                        Vector3 velocity = Quaternion.AngleAxis((4.0f + (6.0f * Recoil)) * Random.Range(0.0f, 1.0f), muzzleRight) * muzzleVec;
                         velocity = Quaternion.AngleAxis(360.0f * Random.Range(0.0f, 1.0f), muzzleVec) * velocity;
 
                         float range = 100.0f;
@@ -218,14 +218,25 @@ public class PlayerScript : NetworkBehaviour
                 }
 
                 //After firing, increase recoil of the shotgun for 1.5 seconds, you gain 4 degrees of spread per seconds remaining, so at worse it is 10 degrees spread compared to 4.
-                Recoil.Value += 1.5f;
-                if (Recoil.Value > 1.5f)
-                    Recoil.Value = 1.5f;
+                Recoil += 1.5f;
+                if (Recoil > 1.5f)
+                    Recoil = 1.5f;
 
             }
 
         }
 
+        //Play the animation on the server side, so it can be seen globally.
+        shotgunAnimator.SetBool("triggerPulled", true);
+
+        //"Reload" the shotgun after 0.25s (the animation plays for this long.)
+        Invoke("ReloadShotgun", 0.25f);
+
+    }
+
+    private void ReloadShotgun()
+    {
+        shotgunAnimator.SetBool("triggerPulled", false);
     }
 
 
